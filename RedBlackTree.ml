@@ -10,9 +10,19 @@ type 'a t = Empty | Node of 'a t * 'a * 'a t * color
 
 let empty = Empty
 
-let rec mem x tree = match tree with
- | Empty -> false
- | Node (l,y,r,_) -> x=y || (if x<y then (mem x l) else (mem x r))
+let rec is_member x tree = match tree with
+  | Empty -> false
+  | Node (l,y,r,_) -> if      x < y then is_member x l
+                      else if x > y then is_member x r
+                      else true 
+
+let rec size = function
+  | Empty -> 0
+  | Node (l,_,r,_) -> size l + 1 + size r
+
+let rec black_height = function
+  | Empty -> 1
+  | Node (l,_,_,c) -> black_height l + (if c=Black then 1 else 0)
 
 let rec map f = function
   | Empty -> Empty
@@ -21,8 +31,6 @@ let rec map f = function
 let rec fold f acc = function
   | Empty -> acc
   | Node (l,x,r,_) -> fold f (f (fold f acc l) x) r
-
-let size tree = fold (fun acc node -> if node=Empty then acc else acc+1) 0 tree
 
 let rec iter f = function
   | Empty -> ()
@@ -43,17 +51,16 @@ let mapi f root =
        let (i1,lf) = map i0 lx in
        let (i2,rf) = map (i1+1) rx in
        (i2, Node (lf, f i1 x, rf, c)) 
-  in let (_,tree) = map 0 root
-  in tree
+  in snd (map 0 root)
 
-(*** insert ***)
+
+(***************************   insert   *******************************)
+
+exception AlreadyInTree
 
 let is_red = function Node (_,_,_,Red) -> true | _ -> false
 
 let is_black node = not (is_red node)
-
-let not_found() = raise Not_found
-let already_in_tree() = raise (Invalid_argument "already in tree")
 
 let   bad_node () = raise (Invalid_argument "unexpected")
 let empty_node () = raise (Invalid_argument   "empty"   )
@@ -65,59 +72,88 @@ let blacken = function
   | Node (l,x,r,Red) -> Node (l,x,r,Black)
   | tree -> tree
 
-let insert tree x =
-  let xnode = Node (Empty,x,Empty,Red)
-  in
-  let rec ins = function         (* rotations and recolorings are folded together in each case *)
-  | Empty -> xnode               (*                see ascii art for details                   *)
-  | Node (lz,z,rz,Black) -> 
-    if x < z                                                                    (* left side of black node *)
-    then match lz with 
-         | Node (ly,y,ry,Red) ->                                                          (* red child *)
-           if x < y
-           then let lynew = ins ly in                                                 (* outer grandchild *)
-                if is_black lynew then Node(Node(lynew,y,ry,Red),z,rz,Black)
+let node (l,x,r,c) = Node (l,x,r,c)
+
+
+module Insert = struct            (* functions that use comparison operators *)
+
+  let insert (<<) tree x dups_are_ok =
+    let rec ins n = node (tuple n)        (* rotations and recolorings are folded together in each case *)
+    and tuple = function                  (*                see ascii art for details                   *)
+    | Empty -> (Empty,x,Empty,Red)
+    | Node (lz,z,rz,Black) -> 
+      if x << z                                                              (* left side of black node *)
+      then match lz with 
+         | Node (ly,y,ry,Red) ->                                                    (* red child *)
+           if x << y
+           then let lynew = ins ly in                                            (* outer grandchild *)
+                if is_black lynew then (Node(lynew,y,ry,Red),z,rz,Black)
                 else match rz with
-                     | Node (lu,u,ru,Red) -> Node(Node(lynew,y,ry,Black), z, Node(lu,u,ru,Black),  Red )
-                     |           _        -> Node(         lynew,         y, Node(ry,z,rz, Red ), Black)
-           else if x > y
-           then let rynew = ins ry in                                                 (* inner grandchild *)
+                     | Node (lu,u,ru,Red) -> (Node(lynew,y,ry,Black), z, Node(lu,u,ru,Black),  Red )
+                     |           _        -> (         lynew,         y, Node(ry,z,rz, Red ), Black)
+           else
+           if y << x || dups_are_ok
+           then let rynew = ins ry in                                            (* inner grandchild *)
                 match (rynew,rz) with
-                | Empty,_ | Node(_,_,_,Black),_ -> Node(Node(ly,y,rynew, Red ), z,            rz,       Black)
-                |    _ ,  Node (lu, u, ru,Red)  -> Node(Node(ly,y,rynew,Black), z,  Node(lu,u,ru,Black), Red )
-                |  Node (lx,xnew,rx,Red),  _    -> Node(Node(ly,y, lx,   Red ),xnew,Node(rx,z,rz, Red ),Black) 
-           else already_in_tree()
-         | _ -> Node (ins lz, z, rz, Black)
-    else if x > z                                                            (* right side of black node:  *)
-    then match rz with                                                       (*  mirror image of left side *)
+                | Empty,_ | Node(_,_,_,Black),_ -> (Node(ly,y,rynew, Red ), z,            rz,       Black)
+                |    _ ,  Node (lu, u, ru,Red)  -> (Node(ly,y,rynew,Black), z,  Node(lu,u,ru,Black), Red )
+                |  Node (lx,xnew,rx,Red),  _    -> (Node(ly,y, lx,   Red ),xnew,Node(rx,z,rz, Red ),Black) 
+           else raise AlreadyInTree
+         | _ -> (ins lz, z, rz, Black)
+      else
+      if z << x || dups_are_ok                                            (* right side of black node:  *)
+      then match rz with                                                  (*  mirror image of left side *)
          | Node (ly,y,ry,Red) -> 
-           if x > y
+           if y << x
            then let rynew = ins ry in
-                if is_black rynew then Node(lz,z,Node(ly,y,rynew,Red),Black)
+                if is_black rynew then (lz,z,Node(ly,y,rynew,Red),Black)
                 else match lz with
-                     | Node (lu,u,ru,Red)  -> Node(Node(lu, u, ru, Black), z,  Node(ly, y,rynew,Black), Red )
-                     |          _          -> Node(Node(lz, z, ly,   Red ), y,  rynew,  Black)
-           else if x < y
+                     | Node (lu,u,ru,Red) -> (Node(lu, u, ru, Black), z, Node(ly, y,rynew,Black), Red )
+                     |          _         -> (Node(lz, z, ly,  Red ), y,          rynew,         Black)
+           else
+           if x << y || dups_are_ok
            then let lynew = ins ly in
                 match (lynew,lz) with
-                | Empty,_ | Node(_,_,_,Black),_ -> Node(         lz,         z,  Node(lynew,y,ry, Red ),Black)
-                |     _    , Node (lu,u,ru,Red) -> Node(Node(lu,u,ru,Black), z,  Node(lynew,y,ry,Black), Red )
-                | Node (lx,xnew,rx,Red),   _    -> Node(Node(lz,z,lx, Red ),xnew,Node( rx,  y,ry, Red ),Black)
-           else already_in_tree()
-         | _ -> Node (lz, z, ins rz, Black)
-    else already_in_tree()
-  | _ -> raise (Invalid_argument "red child of red node")
-  in
-  blacken (ins (blacken tree))
+                | Empty,_ | Node(_,_,_,Black),_ -> (         lz,         z,  Node(lynew,y,ry, Red ),Black)
+                |     _    , Node (lu,u,ru,Red) -> (Node(lu,u,ru,Black), z,  Node(lynew,y,ry,Black), Red )
+                | Node (lx,xnew,rx,Red),   _    -> (Node(lz,z,lx, Red ),xnew,Node( rx,  y,ry, Red ),Black)
+           else raise AlreadyInTree
+         | _ -> (lz, z, ins rz, Black)
+      else raise AlreadyInTree
+    | _ -> invalid_arg "red child of red node"
+    in
+    blacken (ins (blacken tree))
 
-(*** delete ***)
+  let insert_unique (<<) tree x =
+    try insert (<<) tree x false
+    with AlreadyInTree -> tree
+
+  let merge insert t1 t2 = fold insert t2 t1
+
+  let union insert t1 t2 =
+    if black_height t1 < black_height t2
+    then merge insert t1 t2
+    else merge insert t2 t1
+
+end
+
+let insert        tree x = Insert.insert        (<) tree x true
+let insert_unique tree x = Insert.insert_unique (<) tree x
+
+let union        t1 t2 = Insert.union insert        t1 t2
+let union_unique t1 t2 = Insert.union insert_unique t1 t2
+
+let of_list xs = List.fold_left insert Empty xs
+
+let to_list tree = fold (fun xs x -> x::xs) [] tree
+
+
+(***************************   delete   *******************************)
 
 (* KEY: c = color, l = left, n = node, p = parent, r = right, t = tuple, x = element *)
 
-let  first (l,_,_,_) = l
-let  third (_,_,r,_) = r
-
-let node (l,x,r,c) = Node (l,x,r,c)
+let first (l,_,_,_) = l
+let third (_,_,r,_) = r
 
 let lxrc = function
   | Node (l,x,r,c) -> (l,x,r,c)
@@ -125,7 +161,7 @@ let lxrc = function
 
 let redden = function
   | Node (l,x,r,Black) -> Node (l,x,r,Red)
-  | _ -> raise (Invalid_argument "red or empty")
+  | _ -> invalid_arg "red or empty"
 
 (* rebalancing *)
 
@@ -203,43 +239,113 @@ let rec rem_min (lx,x,rx,cx) =
     let (y,(cy,lxnew)) = rem_min tlx
     in (y, Left.fixup cy (lxnew,x,rx,cx))
 
-let remove root x =
-  let rec rem = function
-    | (Empty,y,Empty,cy) -> if y=x then (cy,Empty) else not_found()
-    | (ly, y, Empty, cy) -> let (cx,lx) = rem (lxrc ly) in  Left.fixup cx (lx,y,Empty,cy)
-    | (Empty ,y, ry, cy) -> let (cx,rx) = rem (lxrc ry) in Right.fixup cx (Empty,y,rx,cy)
-    | (ly,y,ry,cy) ->
-      if x < y
-      then let tly = lxrc ly in
-           let (cx,lynew) = match tly with
-             | (lx,y,Empty,cx) when y=x -> (cx,lx)
-             | (Empty,y,rx,cx) when y=x -> (cx,rx)
-             | _ -> rem tly
-           in Left.fixup cx (lynew,y,ry,cy)
-      else
-      let t_ry = lxrc ry in
-      if x > y
-      then let (cx,rynew) = match t_ry with
-             | (Empty,y,rx,cx) when y=x -> (cx,rx)
-             | (lx,y,Empty,cx) when y=x -> (cx,lx)
-             | _ -> rem t_ry
-           in Right.fixup cx (ly,y,rynew,cy)
-      else match tr_y with
-           | (Empty,xry,rry,cry) ->                    Right.fixup cry (ly,xry,rry,cy)
-           | _ -> let (z,(cz,rynew)) = rem_min t_ry in Right.fixup cz  (ly,z,rynew,cy)
-  in
-  let new_root =
-    match root with
-    | Empty -> not_found()
-    | Node (left, y,Empty,_) when y=x -> left
-    | Node (Empty,y,right,_) when y=x -> right
-    | _ -> let (_,nnew) = rem (lxrc root) in nnew
+module Remove = struct
+
+  let remove (<<) (==) (>>) root x =
+    let rec rem = function
+      | (Empty,y,Empty,cy) -> if x==y then (cy,Empty) else raise Not_found
+      | (ly, y, Empty, cy) -> let (cx,lx) = rem (lxrc ly) in  Left.fixup cx (lx,y,Empty,cy)
+      | (Empty ,y, ry, cy) -> let (cx,rx) = rem (lxrc ry) in Right.fixup cx (Empty,y,rx,cy)
+      | (ly,y,ry,cy) ->
+        if x << y then let tly = lxrc ly in
+                       let (cx,lynew) = match tly with
+                         | (lx,y,Empty,cx) when x==y -> (cx,lx)
+                         | (Empty,y,rx,cx) when x==y -> (cx,rx)
+                         | _ -> rem tly
+                       in Left.fixup cx (lynew,y,ry,cy)
+        else
+        let t_ry = lxrc ry in
+        if x >> y then let (cx,rynew) = match t_ry with
+                         | (Empty,y,rx,cx) when x==y -> (cx,rx)
+                         | (lx,y,Empty,cx) when x==y -> (cx,lx)
+                         | _ -> rem t_ry
+                       in Right.fixup cx (ly,y,rynew,cy)
+        else match t_ry with
+             | (Empty,xry,rry,cry) ->                    Right.fixup cry (ly,xry,rry,cy)
+             | _ -> let (z,(cz,rynew)) = rem_min t_ry in Right.fixup cz  (ly,z,rynew,cy)
+    in
+    let new_root =
+      match root with
+      | Empty -> Empty
+      | Node (left, y,Empty,_) when x==y -> left
+      | Node (Empty,y,right,_) when x==y -> right
+      | _ -> try let (_,nnew) = rem (lxrc root)
+                 in nnew
+             with Not_found -> root
     in blacken new_root
 
-let remove_if_in tree x =
-  try remove x with
-  | Not_found -> tree
-  
+end
+
+let     remove     tree k = try             Remove.remove (<) (=) (>) tree k    with Not_found -> tree
+let rec remove_all tree k = try remove_all (Remove.remove (<) (=) (>) tree k) k with Not_found -> tree
+
+
+(***************************   functor   *******************************)
+
+module type Element_Type =
+  sig
+    type t
+    type k
+    type v
+    val key: t -> k
+    val value: t -> v
+    val compare: k -> k -> int
+  end
+
+module Make: Typeof_Make =
+  functor (E: Element_Type) -> struct
+
+    type element = E.t
+
+    let (<<<<) x y = E.compare (E.key x) (E.key y) < 0
+
+    let (<<<) k y = E.compare k (E.key y) < 0
+    let (===) k y = E.compare k (E.key y) = 0
+    let (>>>) k y = E.compare k (E.key y) > 0
+
+    type nonrec t = element t
+
+    let empty = empty
+    let size  = size
+    let fold  = fold
+    let iter  = iter
+    let iteri = iteri
+    let to_list = to_list
+
+    let rec is_member k tree = match tree with
+     | Empty -> false
+     | Node (l,y,r,_) -> if      k <<< y then is_member k l
+                         else if k >>> y then is_member k r
+                         else true 
+
+    let rec find k tree = match tree with
+     | Empty -> None
+     | Node (l,y,r,_) ->
+         if      k <<< y then find k l
+         else if k >>> y then find k r
+         else Some y
+
+    (* let value k tree = find k tree >>= E.value *)
+
+    let value k tree = match find k tree with
+      | Some x -> Some (E.value x)
+      | None -> None
+
+    let insert tree x = Insert.insert (<<<<) tree x true
+    let insert_unique = Insert.insert_unique (<<<<)
+
+    let union        = Insert.union insert
+    let union_unique = Insert.union insert_unique
+
+    let of_list xs = List.fold_left insert Empty xs
+
+    let remove_raw = Remove.remove (<<<) (===) (>>>)
+
+    let     remove     tree key = try             remove_raw tree key      with Not_found -> tree
+    let rec remove_all tree key = try remove_all (remove_raw tree key) key with Not_found -> tree
+
+end
+
 
 
 
