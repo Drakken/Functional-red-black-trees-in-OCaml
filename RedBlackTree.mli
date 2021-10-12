@@ -1,7 +1,7 @@
 (*
  * a functional implementation of red-black trees
  * based on Cormen et. al., Introduction To Algorithms
- * copyright 2021 Daniel S. Bensen
+ * copyright (c) 2021 by Daniel S. Bensen
  *)
 
 type 'a t
@@ -15,16 +15,17 @@ val is_member: 'a -> 'a t -> bool
 val of_list: 'a list -> 'a t
 val to_list: 'a t -> 'a list
 
-val insert:        'a t -> 'a -> 'a t
-val insert_unique: 'a t -> 'a -> 'a t
+val insert:     'a t -> 'a -> 'a t
+val insert_new: 'a t -> 'a -> 'a t
 
 val remove:     'a t -> 'a -> 'a t
 val remove_all: 'a t -> 'a -> 'a t
 
-val union:        'a t -> 'a t -> 'a t
-val union_unique: 'a t -> 'a t -> 'a t
+val merge: 'a t -> 'a t -> 'a t
+val union: 'a t -> 'a t -> 'a t
 
-val fold: ('b -> 'a -> 'b) -> 'b -> 'a t -> 'b
+val fold_left:  ('b -> 'a -> 'b) -> 'b -> 'a t -> 'b
+val fold_right: ('b -> 'a -> 'b) -> 'b -> 'a t -> 'b
 
 val map:         ('a -> 'b) -> 'a t -> 'b t
 val mapi: (int -> 'a -> 'b) -> 'a t -> 'b t
@@ -32,7 +33,7 @@ val mapi: (int -> 'a -> 'b) -> 'a t -> 'b t
 val iter:         ('a -> unit) -> 'a t -> unit
 val iteri: (int -> 'a -> unit) -> 'a t -> unit
 
-module type Element_Type =
+module type Typeof_Element =
   sig
     type t
     type k
@@ -43,7 +44,7 @@ module type Element_Type =
   end
 
 module type Typeof_Make =
-  functor (E: Element_Type) ->
+  functor (E: Typeof_Element) ->
     sig
       type element = E.t
       type nonrec t = element t
@@ -58,15 +59,16 @@ module type Typeof_Make =
       val to_list: t -> element list
 
       val insert:        t -> element -> t
-      val insert_unique: t -> element -> t
+      val insert_new: t -> element -> t
 
       val remove:     t -> E.k -> t
       val remove_all: t -> E.k -> t
 
-      val union:        t -> t -> t
-      val union_unique: t -> t -> t
+      val merge: t -> t -> t
+      val union: t -> t -> t
 
-      val fold: ('a -> element -> 'a) -> 'a -> t -> 'a
+      val fold_left:  ('a -> element -> 'a) -> 'a -> t -> 'a
+      val fold_right: ('a -> element -> 'a) -> 'a -> t -> 'a
 
       val iter:         (element -> unit) -> t -> unit
       val iteri: (int -> element -> unit) -> t -> unit

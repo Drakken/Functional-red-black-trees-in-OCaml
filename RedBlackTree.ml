@@ -10,7 +10,7 @@ type 'a t = Empty | Node of 'a t * 'a * 'a t * color
 
 let empty = Empty
 
-let rec is_member x tree = match tree with
+let rec is_member x = function
   | Empty -> false
   | Node (l,y,r,_) -> if      x < y then is_member x l
                       else if x > y then is_member x r
@@ -28,9 +28,13 @@ let rec map f = function
   | Empty -> Empty
   | Node(l,x,r,c) -> Node (map f l, f x, map f r, c)
 
-let rec fold f acc = function
+let rec fold_left f acc = function
   | Empty -> acc
-  | Node (l,x,r,_) -> fold f (f (fold f acc l) x) r
+  | Node (l,x,r,_) -> fold_left f (f (fold_left f acc l) x) r
+
+let rec fold_right f acc = function
+  | Empty -> acc
+  | Node (l,x,r,_) -> fold_right f (f (fold_right f acc r) x) l
 
 let rec iter f = function
   | Empty -> ()
@@ -124,11 +128,11 @@ module Insert = struct            (* functions that use comparison operators *)
     in
     blacken (ins (blacken tree))
 
-  let insert_unique (<<) tree x =
+  let insert_new (<<) tree x =
     try insert (<<) tree x false
     with AlreadyInTree -> tree
 
-  let merge insert t1 t2 = fold insert t2 t1
+  let merge insert t1 t2 = fold_left insert t2 t1
 
   let union insert t1 t2 =
     if black_height t1 < black_height t2
@@ -137,15 +141,15 @@ module Insert = struct            (* functions that use comparison operators *)
 
 end
 
-let insert        tree x = Insert.insert        (<) tree x true
-let insert_unique tree x = Insert.insert_unique (<) tree x
+let insert     tree x = Insert.insert     (<) tree x true
+let insert_new tree x = Insert.insert_new (<) tree x
 
-let union        t1 t2 = Insert.union insert        t1 t2
-let union_unique t1 t2 = Insert.union insert_unique t1 t2
+let merge t1 t2 = Insert.union insert     t1 t2
+let union t1 t2 = Insert.union insert_new t1 t2
 
 let of_list xs = List.fold_left insert Empty xs
 
-let to_list tree = fold (fun xs x -> x::xs) [] tree
+let to_list tree = fold_right (fun xs x -> x::xs) [] tree
 
 
 (***************************   delete   *******************************)
@@ -282,18 +286,8 @@ let rec remove_all tree k = try remove_all (Remove.remove (<) (=) (>) tree k) k 
 
 (***************************   functor   *******************************)
 
-module type Element_Type =
-  sig
-    type t
-    type k
-    type v
-    val key: t -> k
-    val value: t -> v
-    val compare: k -> k -> int
-  end
-
 module Make: Typeof_Make =
-  functor (E: Element_Type) -> struct
+  functor (E: Typeof_Element) -> struct
 
     type element = E.t
 
@@ -307,18 +301,19 @@ module Make: Typeof_Make =
 
     let empty = empty
     let size  = size
-    let fold  = fold
+    let fold_left  = fold_left
+    let fold_right = fold_right
     let iter  = iter
     let iteri = iteri
     let to_list = to_list
 
-    let rec is_member k tree = match tree with
+    let rec is_member k = function
      | Empty -> false
      | Node (l,y,r,_) -> if      k <<< y then is_member k l
                          else if k >>> y then is_member k r
                          else true 
 
-    let rec find k tree = match tree with
+    let rec find k = function
      | Empty -> None
      | Node (l,y,r,_) ->
          if      k <<< y then find k l
@@ -332,10 +327,10 @@ module Make: Typeof_Make =
       | None -> None
 
     let insert tree x = Insert.insert (<<<<) tree x true
-    let insert_unique = Insert.insert_unique (<<<<)
+    let insert_new = Insert.insert_new (<<<<)
 
-    let union        = Insert.union insert
-    let union_unique = Insert.union insert_unique
+    let merge = Insert.union insert
+    let union = Insert.union insert_new
 
     let of_list xs = List.fold_left insert Empty xs
 
@@ -345,7 +340,3 @@ module Make: Typeof_Make =
     let rec remove_all tree key = try remove_all (remove_raw tree key) key with Not_found -> tree
 
 end
-
-
-
-

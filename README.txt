@@ -1,20 +1,24 @@
 
-This is a module for using red-black trees in OCaml. It can be 
-used to store simple elements that can be compared with (<), (=), 
-and (>), or for more complicated types in real-world applications. 
-Against Chris Okasaki's advice*, it uses a functional version of 
-the conventional rebalancing system, which searches for red nodes 
-near a node that has just been deleted. The rebalancing function 
-is called at each step as the recursion of the delete function 
-unwinds, even after the tree has been rebalanced, but the function's 
-return value carries a flag that indicates whether the rebalancing 
-is done, so all it has to do with a subtree that has been rebalanced 
-is inspect the flag and return.
+This is a module for using red-black trees in OCaml. It can be used 
+to store simple elements that can be compared with (<), (=), and (>), 
+or for more complicated types in real-world applications. 
+
+The insert and delete functions in this module use a functional version 
+of the conventional rebalancing system, which searches for useful nodes 
+near a node that has just been inserted or deleted. This goes against 
+conventional wisdom in functional programming*, but it reduces the need 
+for escalating the rebalancing process to nodes higher up in the tree.
+
+Even though a recursive rebalancing function has to be called at each 
+step as the recursion of the delete function unwinds, the return value 
+of this module's rebalancing function carries a flag that indicates 
+whether the rebalancing is done. So all the function has to do with 
+a subtree that has been rebalanced is inspect the flag and return.
 
 empty: an empty tree
 
 insert e t: add an element to a tree and return the new tree
-insert_unique e t: don't insert if the element is already in the tree
+insert_new e t: don't insert if the element is already in the tree
 
 remove e t: remove one node containing the element and return the new tree
 remove_all e t: remove all nodes containing the element
@@ -25,21 +29,22 @@ is_member e t: whether an element is in a tree
 of_list l: create a tree from a list
 to_list t: create a list from a tree
 
-union t1 t2: two trees merged
-union_unique t1 t2: union with no duplicates
+merge t1 t2: all the nodes in the two trees, together in one tree
+union t1 t2: merge with no duplication (uses insert_new instead of insert)
 
-fold f acc t: fold_left for trees
+fold_left  f acc t: in-order fold
+fold_right f acc t: reverse in-order fold
 
-map f t: map for trees
+map  f t: map for trees
 mapi f t: map with in-order numbering of nodes
 
 iter f t: in-order iteration
 iteri f t: iter with in-order numbering
 
-Make (Element): a functor to create modules for complex elements
+Make (E): a functor to create modules for complex elements
  
-Element_Type: the type of a module you will have to create to use Make.
-              Your module must contain these items:
+Typeof_Element: the type of a module you'll have to create to use Make.
+                Your element module must contain these items:
 
     t: the type of the elements in the tree
     k: the type of element keys
