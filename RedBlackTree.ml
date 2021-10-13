@@ -1,7 +1,7 @@
 (*
  * a functional implementation of red-black trees
  * based on Cormen et. al., Introduction To Algorithms
- * copyright 2021 Daniel S. Bensen
+ * copyright (c) 2021 Daniel S. Bensen
  *)
 
 type color = Red | Black
@@ -285,6 +285,48 @@ let rec remove_all tree k = try remove_all (Remove.remove (<) (=) (>) tree k) k 
 
 
 (***************************   functor   *******************************)
+
+module type Typeof_Element =
+  sig
+    type t
+    type tkey
+    type tval
+    val key: t -> tkey
+    val value: t -> tval
+    val compare: tkey -> tkey -> int
+  end
+
+module type Typeof_Make =
+  functor (E: Typeof_Element) ->
+    sig
+      type element = E.t
+      type nonrec t = element t
+      val empty: t
+      val size: t -> int
+      val is_member: E.tkey -> t -> bool
+
+      val find:  E.tkey -> t -> element option
+      val value: E.tkey -> t -> E.tval  option
+
+      val of_list: element list -> t
+      val to_list: t -> element list
+
+      val insert:     t -> element -> t
+      val insert_new: t -> element -> t
+
+      val remove:     t -> E.tkey -> t
+      val remove_all: t -> E.tkey -> t
+
+      val merge: t -> t -> t
+      val union: t -> t -> t
+
+      val fold_left:  ('a -> element -> 'a) -> 'a -> t -> 'a
+      val fold_right: ('a -> element -> 'a) -> 'a -> t -> 'a
+
+      val iter:         (element -> unit) -> t -> unit
+      val iteri: (int -> element -> unit) -> t -> unit
+
+    end
 
 module Make: Typeof_Make =
   functor (E: Typeof_Element) -> struct
