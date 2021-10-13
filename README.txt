@@ -7,14 +7,16 @@ The insert and delete functions in this module use a functional version
 of the conventional rebalancing system, which searches for useful nodes 
 near a node that has just been inserted or deleted. This goes against 
 conventional wisdom in functional programming*, which seems to be based
-in part on the idea that the need for a subtree to be rebalanced has to 
-be encoded in the tree itself with a special color. 
+in part on the idea that, after a node is deleted, the need for the 
+affected subtree to be rebalanced has to be encoded in the tree itself 
+with a special color. 
 
 This module takes a slightly different approach: After a node is deleted, 
-the rebalancing function returns the color of the deleted node along with 
-the affected subtree. If the color is red, the function returns immediately. 
-If the deleted node was black, the function returns black until it finds 
-a subtree that can be rebalanced, and then returns red.
+the delete function passes the color of the deleted node to the rebal-
+ancing function along with the affected subtree. If the color is red, 
+the rebalancing function returns immediately. If the deleted node was 
+black, each call to the function returns black until one call finds a 
+subtree that can be rebalanced, and then the remaining calls return red.
 
 
 User's guide
