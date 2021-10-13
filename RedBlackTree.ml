@@ -20,9 +20,13 @@ let rec size = function
   | Empty -> 0
   | Node (l,_,r,_) -> size l + 1 + size r
 
-let rec black_height = function
-  | Empty -> 1
-  | Node (l,_,_,c) -> black_height l + (if c=Black then 1 else 0)
+let rec black_height tree =
+  let rec height = function
+    | Empty -> 1
+    | Node (l,_,_,c) -> height l + (if c=Black then 1 else 0)
+  in match tree with
+    | Empty -> 0
+    | Node (l,_,_,c) -> height l
 
 let rec map f = function
   | Empty -> Empty
