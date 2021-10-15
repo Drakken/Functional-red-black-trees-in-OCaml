@@ -1,6 +1,5 @@
 (*
  * a functional implementation of red-black trees
- * based on Cormen et. al., Introduction To Algorithms
  * copyright (c) 2021 Daniel S. Bensen
  *)
 

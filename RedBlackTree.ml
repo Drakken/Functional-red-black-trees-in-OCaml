@@ -1,6 +1,5 @@
 (*
  * a functional implementation of red-black trees
- * based on Okasaki's simplified rebalancing system
  * copyright (c) 2021 Daniel S. Bensen
  *)
 
@@ -100,23 +99,21 @@ module Insert = struct            (* functions that use comparison operators *)
            then let lynew = ins xmino ly in                                  (* outer grandchild *)
                 if is_black lynew then (Node(lynew,y,ry,Red),z,rz,Black)
                 else  (blacken lynew, y, Node(ry,z,rz,Black),Red)
-           else
-             let rynew = ins (Some y) ry in                                  (* inner grandchild *)
+           else                                                              (* inner grandchild *)
              begin
-                match rynew with
+                match ins (Some y) ry with
                 |  Node (lx,xnew,rx,Red) -> (Node(ly,y, lx,  Black),xnew,Node(rx,z,rz,Black), Red ) 
-                |           _            -> (Node(ly,y,rynew, Red ), z,            rz,       Black)
+                |         rynew          -> (Node(ly,y,rynew, Red ), z,            rz,       Black)
              end
          | _ -> (ins xmino lz, z, rz, Black)
       else                                                         (* right side of black node:  *)
-      begin
-        match rz with                                              (*  mirror image of left side *)
+      begin                                                        (*  mirror image of left side *)
+        match rz with
          | Node (ly,y,ry,Red) -> 
            if x << y
-           then let lynew = ins (Some z) ly in
-                match lynew with
+           then match ins (Some z) ly with
                 |  Node (lx,xnew,rx,Red) -> (Node(lz,z,lx,Black),xnew,Node( rx,  y,ry,Black), Red )
-                |           _            -> (         lz,         z,  Node(lynew,y,ry, Red ),Black)
+                |         lynew          -> (         lz,         z,  Node(lynew,y,ry, Red ),Black)
            else let rynew = ins (Some y) ry in
                 if is_black rynew then (lz,z,Node(ly,y,rynew,Red),Black)
                 else (Node(lz,z,ly,Black), y, blacken rynew, Red)
