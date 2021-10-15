@@ -3,17 +3,6 @@ This is a module for using red-black trees in OCaml. It can be used to
 store simple elements that can be compared with (<), (=), and (>), or 
 for more complicated types in real-world applications. 
 
-The insert and delete functions in this module use a functional version 
-of the conventional rebalancing system, which searches for useful nodes 
-near a node that has been inserted or deleted. This goes against the 
-conventional wisdom in functional programming*, but it reduces the need
-to continue the rebalancing process higher up in the tree.
-
-This module also avoids the need for a special color by passing the 
-color of the deleted node to the rebalancing function along with the 
-affected subtree. As soon as a call to the function finds a way to
-rebalance the subtree passed to it, it returns red instead of black.
-
 
 User's guide
 
@@ -27,7 +16,7 @@ User's guide
   remove e t: remove one node containing the element and return the new tree
   remove_all e t: remove all nodes containing the element
 
-  size t: the number of nodes in a tree
+  size t: the number of nodes in a tree (takes O(N) time)
   black_height t: the black height of the tree
 
   is_member e t: whether an element is in a tree
@@ -40,8 +29,8 @@ User's guide
                Duplicates are eliminated from the smaller of the two trees
                (based on black height), but not from the larger one.
 
-  fold_left  f acc t: in-order fold
-  fold_right f acc t: reverse in-order fold
+  fold_left  f x0 t: in-order fold
+  fold_right f x0 t: reverse in-order fold
 
   map  f t: map for trees
   mapi f t: map with in-order numbering of nodes
@@ -59,7 +48,7 @@ additional functions:
 
   type t = element RedBlackTree.t
 
-  find  k t: returns an optional element from the tree with the specified key
+  find  k t: returns an optional element from a tree with a specified key
   value k t: calls find and extracts the value from the element
 
 User-defined modules don't have map or mapi, but you can use the ones in 
@@ -68,7 +57,7 @@ RedBlackTree.
 To create a module with Make, you'll need to write your own module describing 
 the elements in the tree:
  
-  Typeof_Element: the type of the element module passed to Make
+  Typeof_Element: the type of element modules that can be passed to Make
 
 Your module must contain these items:
 
@@ -81,7 +70,6 @@ Your module must contain these items:
                    a negative integer when k1 belongs before k2, and
                    a positive integer when k1 belongs after k2.
 
+Once you've defined an element module, you can create your own tree module:
 
-
-* Chris Okasaki, Red-Black Trees in a Functional Setting, J. Functional Programming, January 1993
-* https://www.cs.cornell.edu/courses/cs3110/2021sp/textbook/eff/rb.html
+  module MyRedBlackTree = RedBlackTree.Make (MyElement)

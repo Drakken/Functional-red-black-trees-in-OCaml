@@ -1,6 +1,6 @@
 (*
  * a functional implementation of red-black trees
- * based on Cormen et. al., Introduction To Algorithms
+ * based on Okasaki's simplified rebalancing system
  * copyright (c) 2021 Daniel S. Bensen
  *)
 
@@ -20,13 +20,13 @@ let rec size = function
   | Empty -> 0
   | Node (l,_,r,_) -> size l + 1 + size r
 
-let rec black_height tree =
-  let rec height = function
+let black_height tree =
+  let rec bh = function
     | Empty -> 1
-    | Node (l,_,_,c) -> height l + (if c=Black then 1 else 0)
+    | Node (l,_,_,c) -> bh l + (if c=Black then 1 else 0)
   in match tree with
     | Empty -> 0
-    | Node (l,_,_,c) -> height l
+    | Node (l,_,_,_) -> bh l
 
 let rec map f = function
   | Empty -> Empty
@@ -64,7 +64,7 @@ let mapi f root =
 
 (***************************   insert   *******************************)
 
-exception AlreadyInTree
+exception Already_in_tree
 
 let is_red = function Node (_,_,_,Red) -> true | _ -> false
 
@@ -85,56 +85,50 @@ let node (l,x,r,c) = Node (l,x,r,c)
 
 module Insert = struct            (* functions that use comparison operators *)
 
-  let insert (<<) tree x dups_are_ok =
-    let rec ins n = node (tuple n)        (* rotations and recolorings are folded together in each case *)
-    and tuple = function                  (*                see ascii art for details                   *)
-    | Empty -> (Empty,x,Empty,Red)
+  let insert (<<) tree x dups_are_ok =                    (* rotations and recolorings are *)
+    let rec ins xmino n = node (tuple xmino n)            (* folded together in each case  *)
+    and tuple xmino = function                            (*   see ascii art for details   *)
+    | Empty -> let tx = (Empty,x,Empty,Red) in
+               ( match xmino with None -> tx
+                                | Some xmin -> if xmin << x || dups_are_ok then tx
+                                               else raise Already_in_tree )
     | Node (lz,z,rz,Black) -> 
-      if x << z                                                              (* left side of black node *)
+      if x << z                                                       (* left side of black node *)
       then match lz with 
          | Node (ly,y,ry,Red) ->                                                    (* red child *)
            if x << y
-           then let lynew = ins ly in                                            (* outer grandchild *)
+           then let lynew = ins xmino ly in                                  (* outer grandchild *)
                 if is_black lynew then (Node(lynew,y,ry,Red),z,rz,Black)
-                else match rz with
-                     | Node (lu,u,ru,Red) -> (Node(lynew,y,ry,Black), z, Node(lu,u,ru,Black),  Red )
-                     |           _        -> (         lynew,         y, Node(ry,z,rz, Red ), Black)
+                else  (blacken lynew, y, Node(ry,z,rz,Black),Red)
            else
-           if y << x || dups_are_ok
-           then let rynew = ins ry in                                            (* inner grandchild *)
-                match (rynew,rz) with
-                | Empty,_ | Node(_,_,_,Black),_ -> (Node(ly,y,rynew, Red ), z,            rz,       Black)
-                |    _ ,  Node (lu, u, ru,Red)  -> (Node(ly,y,rynew,Black), z,  Node(lu,u,ru,Black), Red )
-                |  Node (lx,xnew,rx,Red),  _    -> (Node(ly,y, lx,   Red ),xnew,Node(rx,z,rz, Red ),Black) 
-           else raise AlreadyInTree
-         | _ -> (ins lz, z, rz, Black)
-      else
-      if z << x || dups_are_ok                                            (* right side of black node:  *)
-      then match rz with                                                  (*  mirror image of left side *)
+             let rynew = ins (Some y) ry in                                  (* inner grandchild *)
+             begin
+                match rynew with
+                |  Node (lx,xnew,rx,Red) -> (Node(ly,y, lx,  Black),xnew,Node(rx,z,rz,Black), Red ) 
+                |           _            -> (Node(ly,y,rynew, Red ), z,            rz,       Black)
+             end
+         | _ -> (ins xmino lz, z, rz, Black)
+      else                                                         (* right side of black node:  *)
+      begin
+        match rz with                                              (*  mirror image of left side *)
          | Node (ly,y,ry,Red) -> 
-           if y << x
-           then let rynew = ins ry in
+           if x << y
+           then let lynew = ins (Some z) ly in
+                match lynew with
+                |  Node (lx,xnew,rx,Red) -> (Node(lz,z,lx,Black),xnew,Node( rx,  y,ry,Black), Red )
+                |           _            -> (         lz,         z,  Node(lynew,y,ry, Red ),Black)
+           else let rynew = ins (Some y) ry in
                 if is_black rynew then (lz,z,Node(ly,y,rynew,Red),Black)
-                else match lz with
-                     | Node (lu,u,ru,Red) -> (Node(lu, u, ru, Black), z, Node(ly, y,rynew,Black), Red )
-                     |          _         -> (Node(lz, z, ly,  Red ), y,          rynew,         Black)
-           else
-           if x << y || dups_are_ok
-           then let lynew = ins ly in
-                match (lynew,lz) with
-                | Empty,_ | Node(_,_,_,Black),_ -> (         lz,         z,  Node(lynew,y,ry, Red ),Black)
-                |     _    , Node (lu,u,ru,Red) -> (Node(lu,u,ru,Black), z,  Node(lynew,y,ry,Black), Red )
-                | Node (lx,xnew,rx,Red),   _    -> (Node(lz,z,lx, Red ),xnew,Node( rx,  y,ry, Red ),Black)
-           else raise AlreadyInTree
-         | _ -> (lz, z, ins rz, Black)
-      else raise AlreadyInTree
+                else (Node(lz,z,ly,Black), y, blacken rynew, Red)
+         | _ -> (lz, z, ins (Some z) rz, Black)
+      end
     | _ -> invalid_arg "red child of red node"
     in
-    blacken (ins (blacken tree))
+    blacken (ins None (blacken tree))
 
   let insert_new (<<) tree x =
     try insert (<<) tree x false
-    with AlreadyInTree -> tree
+    with Already_in_tree -> tree
 
   let merge insert t1 t2 = fold_left insert t2 t1
 
@@ -353,22 +347,22 @@ module Make: Typeof_Make =
     let iteri = iteri
     let to_list = to_list
 
-    let rec is_member k = function
-     | Empty -> false
-     | Node (l,y,r,_) -> if      k <<< y then is_member k l
-                         else if k >>> y then is_member k r
-                         else true 
+    let find k tree = 
+      let rec look k ymino = function
+          | Node (l,y,r,_) -> if k <<< y then look k  ymino   l
+                              else            look k (Some y) r
+          | Empty -> match ymino with
+              | None -> None
+              | Some y -> if k === y then Some y else None
+      in match tree with
+        | Empty -> None
+        | Node (l,y,r,_) -> if k <<< y then look k   None   l
+                            else            look k (Some y) r
 
-    let rec find k = function
-     | Empty -> None
-     | Node (l,y,r,_) ->
-         if      k <<< y then find k l
-         else if k >>> y then find k r
-         else Some y
+    let is_member k tree = not (find k tree = None)
 
-    (* let value k tree = find k tree >>= E.value *)
-
-    let value k tree = match find k tree with
+    let value k tree = (* find k tree >>= E.value *)
+      match find k tree with
       | Some x -> Some (E.value x)
       | None -> None
 
