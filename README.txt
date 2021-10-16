@@ -1,7 +1,9 @@
 
 This is a module for using red-black trees in OCaml. It can be used to 
 store simple elements that can be compared with (<), (=), and (>), or 
-for more complicated types in real-world applications. 
+for more complicated types in real-world applications. Aside from an 
+exception used in the remove functions to indicate failure, all of the
+functions are purely functional.
 
 
 User's guide
