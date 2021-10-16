@@ -69,8 +69,8 @@ let is_red = function Node (_,_,_,Red) -> true | _ -> false
 
 let is_black node = not (is_red node)
 
-let   bad_node () = raise (Invalid_argument "unexpected")
-let empty_node () = raise (Invalid_argument   "empty"   )
+let   bad_node () = invalid_arg "unexpected node"
+let empty_node () = invalid_arg   "empty node"
 
 let right_child = function Node (_,_,r,_) -> r | Empty -> empty_node()
 let  left_child = function Node (l,_,_,_) -> l | Empty -> empty_node()
@@ -231,10 +231,9 @@ module Right = struct
 end
 
 let rec rem_min (lx,x,rx,cx) =
-  let tlx = lxrc lx in
-  match tlx with
+  match lxrc lx with
   | (Empty,y,ry,cy) -> (y, Left.fixup cy (ry,x,rx,cx))
-  |  _ ->
+  | tlx ->
     let (y,(cy,lxnew)) = rem_min tlx
     in (y, Left.fixup cy (lxnew,x,rx,cx))
 
@@ -246,31 +245,27 @@ module Remove = struct
       | (ly, y, Empty, cy) -> let (cx,lx) = rem (lxrc ly) in  Left.fixup cx (lx,y,Empty,cy)
       | (Empty ,y, ry, cy) -> let (cx,rx) = rem (lxrc ry) in Right.fixup cx (Empty,y,rx,cy)
       | (ly,y,ry,cy) ->
-        if x << y then let tly = lxrc ly in
-                       let (cx,lynew) = match tly with
+        if x << y then let (cx,lynew) = match lxrc ly with
                          | (lx,y,Empty,cx) when x==y -> (cx,lx)
                          | (Empty,y,rx,cx) when x==y -> (cx,rx)
-                         | _ -> rem tly
+                         | tly -> rem tly
                        in Left.fixup cx (lynew,y,ry,cy)
         else
-        let t_ry = lxrc ry in
-        if x >> y then let (cx,rynew) = match t_ry with
+        if x >> y then let (cx,rynew) = match lxrc ry with
                          | (Empty,y,rx,cx) when x==y -> (cx,rx)
                          | (lx,y,Empty,cx) when x==y -> (cx,lx)
-                         | _ -> rem t_ry
+                         | t_ry -> rem t_ry
                        in Right.fixup cx (ly,y,rynew,cy)
-        else match t_ry with
-             | (Empty,xry,rry,cry) ->                    Right.fixup cry (ly,xry,rry,cy)
-             | _ -> let (z,(cz,rynew)) = rem_min t_ry in Right.fixup cz  (ly,z,rynew,cy)
+        else match lxrc ry with
+             | (Empty,xry,rry,cry) ->                       Right.fixup cry (ly,xry,rry,cy)
+             | t_ry -> let (z,(cz,rynew)) = rem_min t_ry in Right.fixup cz  (ly,z,rynew,cy)
     in
     let new_root =
       match root with
       | Empty -> Empty
       | Node (left, y,Empty,_) when x==y -> left
       | Node (Empty,y,right,_) when x==y -> right
-      | _ -> try let (_,nnew) = rem (lxrc root)
-                 in nnew
-             with Not_found -> root
+      | Node (l,y,r,c) -> try snd (rem (l,y,r,c)) with Not_found -> root
     in blacken new_root
 
 end
